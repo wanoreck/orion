@@ -1,0 +1,18 @@
+# Dependencies & builds
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+
+# Environment & secrets — never commit real values; keep .env.example
+.env
+.env.*
+!.env.example
+
+# Local tooling
+.claude/settings.local.json
+*.log
+.DS_Store
+Thumbs.db
