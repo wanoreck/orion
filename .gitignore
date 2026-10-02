@@ -20,3 +20,25 @@ Thumbs.db
 # Next.js generated
 next-env.d.ts
 *.tsbuildinfo
+
+# Claude Code sandbox placeholders (bind-mounted /dev/null, not real files)
+/.bash_profile
+/.bashrc
+/.profile
+/.zprofile
+/.zshrc
+/.gitconfig
+/.gitmodules
+/.ripgreprc
+/.mcp.json
+/.idea
+/.vscode
+/.claude/agents
+/.claude/commands
+/.claude/launch.json
+/.claude/loop.md
+/.claude/output-styles
+/.claude/routines
+/.claude/scheduled_tasks.json
+/.claude/skills
+/.claude/workflows

@@ -5,6 +5,9 @@
   },
   "permissions": {
     "blockReadsOutsideWorkingDirectories": true,
+    "allow": [
+      "Bash(git push origin main)"
+    ],
     "deny": [
       "Read(./.env)",
       "Read(./.env.local)",
