@@ -1,8 +1,8 @@
 # Orion: Project Guide
 
-> **Status (2026-09-30):** repository created; no app code yet. Next step: scaffold the app
-> (see "First build"). Decisions are in **`docs/DECISIONS.md`**; they override anything here
-> that disagrees.
+> **Status (2026-10-02):** First build step 1 done (Next.js + Carbon scaffold, Dockerfile,
+> health check, Postgres + Drizzle migrations). Next step: Orion accounts (see "First build").
+> Decisions are in **`docs/DECISIONS.md`**; they override anything here that disagrees.
 
 **Orion** (github.com/wanoreck/orion, private) is the staff control panel for **ServiceFlow**,
 a WordPress plugin for order and workflow management. ServiceFlow is the system of record;
