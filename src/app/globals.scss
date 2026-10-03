@@ -62,3 +62,18 @@ body {
     background: var(--cds-background-hover, #393939);
   }
 }
+
+.orion-notice {
+  margin-bottom: 1.5rem;
+}
+
+.orion-plain-list {
+  list-style: disc;
+  padding-left: 1.5rem;
+}
+
+.orion-disclosure > summary {
+  margin-bottom: 1rem;
+  color: var(--cds-link-primary);
+  cursor: pointer;
+}

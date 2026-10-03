@@ -7,7 +7,10 @@ import type { FormState } from '@/app/actions/form-state';
 
 export function FormMessage({ state }: { state: FormState }) {
   if (state?.error) {
-    return <InlineNotification kind="error" title={state.error} lowContrast hideCloseButton role="alert" />;
+    return (
+      <InlineNotification kind="error" title={state.error} subtitle={state.code ? `Code: ${state.code}` : undefined}
+        lowContrast hideCloseButton role="alert" />
+    );
   }
   if (state?.success) {
     return <InlineNotification kind="success" title={state.success} lowContrast hideCloseButton role="status" />;

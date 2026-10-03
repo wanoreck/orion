@@ -1,95 +1,24 @@
-// End-to-end: runs the production build (.next/standalone, so `npm run build` first) against
-// TEST_DATABASE_URL and drives it over HTTP the way a browser does with JavaScript off:
-// fetch a page, then post its form (Server Actions accept plain form posts).
+// End-to-end: accounts, against the production build (see harness.mts).
 import assert from 'node:assert/strict';
-import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { after, before, test } from 'node:test';
 import { closeDatabase, resetDatabase } from '../helpers.mts';
+import { COOKIE, PASSWORD, hiddenFields, redirectsTo, sessionCookie, startOrion, type Orion } from './harness.mts';
 
-const PORT = 3999;
-const BASE = `http://127.0.0.1:${PORT}`;
-const COOKIE = '__Host-orion_session';
-const PASSWORD = 'correct horse battery';
-let server: ChildProcess;
+let orion: Orion;
+let BASE = '';
+const get = (path: string, cookie?: string) => orion.get(path, cookie);
+const submit = (...args: Parameters<Orion['submit']>) => orion.submit(...args);
 
 before(async () => {
-  if (!existsSync('.next/standalone/server.js')) throw new Error('Run `npm run build` first');
   await resetDatabase();
-  server = spawn('node', ['.next/standalone/server.js'], {
-    env: { ...process.env, PORT: String(PORT), HOSTNAME: '127.0.0.1', NODE_ENV: 'production' },
-    stdio: ['ignore', 'inherit', 'inherit'],
-  });
-  for (let i = 0; i < 100; i++) {
-    try {
-      if ((await fetch(`${BASE}/api/health`)).ok) return;
-    } catch {
-      // Not listening yet.
-    }
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  throw new Error('server did not start');
+  orion = await startOrion(3999);
+  BASE = orion.base;
 });
 
 after(async () => {
-  server?.kill();
+  orion?.stop();
   await closeDatabase();
 });
-
-type Page = { status: number; location: string | null; html: string; setCookie: string[] };
-
-async function toPage(res: Response): Promise<Page> {
-  // React separates adjacent text and values with <!-- --> markers; drop them for matching.
-  const html = (await res.text()).replaceAll('<!-- -->', '');
-  return { status: res.status, location: res.headers.get('location'), html, setCookie: res.headers.getSetCookie() };
-}
-
-async function get(path: string, cookie?: string): Promise<Page> {
-  const res = await fetch(BASE + path, { redirect: 'manual', headers: cookie ? { cookie } : {} });
-  return toPage(res);
-}
-
-function decode(s: string): string {
-  return s.replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-}
-
-/** Posts the form on `path` that contains `marker`, with its hidden fields plus `fields`. */
-async function submit(
-  path: string,
-  marker: string,
-  fields: Record<string, string>,
-  cookie?: string,
-  origin = BASE,
-): Promise<Page> {
-  const page = await get(path, cookie);
-  assert.equal(page.status, 200, `GET ${path}`);
-  const form = page.html.split('<form').slice(1).map((f) => f.split('</form>')[0]).find((f) => f.includes(marker));
-  assert.ok(form, `no form containing ${marker} on ${path}`);
-  const body = new FormData();
-  for (const [, attrs] of form.matchAll(/<input([^>]*type="hidden"[^>]*)>/g)) {
-    const name = /name="([^"]*)"/.exec(attrs)?.[1];
-    if (name) body.append(decode(name), decode(/value="([^"]*)"/.exec(attrs)?.[1] ?? ''));
-  }
-  for (const [k, v] of Object.entries(fields)) body.append(k, v);
-  const res = await fetch(BASE + path, {
-    method: 'POST',
-    body,
-    redirect: 'manual',
-    headers: { origin, ...(cookie ? { cookie } : {}) },
-  });
-  return toPage(res);
-}
-
-function sessionCookie(page: Page): string {
-  const header = page.setCookie.find((c) => c.startsWith(`${COOKIE}=`));
-  assert.ok(header, 'session cookie set');
-  return header.split(';')[0];
-}
-
-function redirectsTo(page: Page, path: string) {
-  assert.ok([303, 307, 308].includes(page.status), `expected a redirect, got ${page.status}`);
-  assert.equal(new URL(page.location!, BASE).pathname, path);
-}
 
 test('accounts, end to end', async (t) => {
   let adminCookie = '';
@@ -164,12 +93,7 @@ test('accounts, end to end', async (t) => {
   await t.test("a User can't call the Admin action directly", async () => {
     // Borrow the Admin's create-user form, but post it with the User's session.
     const adminForm = await get('/users', adminCookie);
-    const form = adminForm.html.split('<form').slice(1).find((f) => f.includes('Initial password'))!.split('</form>')[0];
-    const body = new FormData();
-    for (const [, attrs] of form.matchAll(/<input([^>]*type="hidden"[^>]*)>/g)) {
-      const name = /name="([^"]*)"/.exec(attrs)?.[1];
-      if (name) body.append(decode(name), decode(/value="([^"]*)"/.exec(attrs)?.[1] ?? ''));
-    }
+    const body = hiddenFields(adminForm.html, 'Initial password');
     for (const [k, v] of Object.entries({ name: 'Sneaky', email: 'sneaky@example.com', role: 'admin', password: PASSWORD })) {
       body.append(k, v);
     }

@@ -34,6 +34,10 @@ npm test                        # unit tests (tests/unit)
 npm run build && npm run test:e2e   # the production build, driven over HTTP (tests/e2e)
 ```
 
+The ServiceFlow tests use a stand-in site (`tests/fake-serviceflow.mts`) that verifies
+signatures from the receiving side with its own encoder, so client bugs can't hide behind
+shared code.
+
 ## Accounts
 
 Orion has its own accounts (D6): email + password, with Admin and User roles.
@@ -64,3 +68,20 @@ environment variables in Coolify (see `.env.example`):
 - `ORION_ENCRYPTION_KEY`: 32 random bytes, base64 (`openssl rand -base64 32`).
 
 If the database can't be reached at startup, the container exits and Docker restarts it.
+
+## ServiceFlow connection
+
+- **Settings** (`/settings`, Admins only) takes the connection key from the ServiceFlow site
+  (wp-admin → Settings → Orion). On save, Orion checks the `sfk1_` format, verifies the key
+  with a signed `GET /connection`, and only then stores it, encrypted (AES-256-GCM under
+  `ORION_ENCRYPTION_KEY`). A key that fails verification is not saved, so a working
+  connection is never replaced by a broken one; the error shows the API's code.
+- The key is never sent back to the browser. Settings shows only that one is set, the
+  connection ID, and the site's live status (name, plugin and API versions, whether account
+  linking is available), checked on every visit.
+- With no key, every page still loads and shows a notice pointing Admins to Settings (D4).
+- If `ORION_ENCRYPTION_KEY` changes, the stored key can't be decrypted; Settings says so, and
+  the key has to be pasted again.
+- The API client (`src/serviceflow/`) signs every request per the contract §2, maps every §4
+  error code, re-signs once on clock skew, never follows redirects, and returns
+  `X-SF-Server-Time` with each response for polling.

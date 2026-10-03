@@ -10,7 +10,12 @@ export function AppHeader({ name, isAdmin }: { name: string; isAdmin: boolean })
   const path = usePathname();
   const items = [
     { href: '/', label: 'Home' },
-    ...(isAdmin ? [{ href: '/users', label: 'Users' }] : []),
+    ...(isAdmin
+      ? [
+          { href: '/users', label: 'Users' },
+          { href: '/settings', label: 'Settings' },
+        ]
+      : []),
     { href: '/account', label: 'Account' },
   ];
   return (
