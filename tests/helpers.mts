@@ -18,7 +18,7 @@ export async function resetDatabase(): Promise<void> {
 /** Empties Orion's tables between tests (much faster than re-migrating). */
 export async function clearTables(): Promise<void> {
   const { sql } = await import('@/db');
-  await sql().unsafe('truncate users, sessions, settings cascade');
+  await sql().unsafe('truncate users, sessions, settings, account_links, link_states cascade');
 }
 
 export async function closeDatabase(): Promise<void> {

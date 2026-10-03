@@ -1,8 +1,8 @@
 # Orion: Project Guide
 
-> **Status (2026-10-03):** First build steps 1–4 done (scaffold; accounts; Settings with the
-> connection key; the signed API client). The home page shows order counts as a smoke test.
-> Next step: account linking (see "First build"). Deployed at https://orion.server.wanoreck.com.
+> **Status (2026-10-03):** First build steps 1–5 done (scaffold; accounts; Settings and the
+> connection key; the signed API client; WordPress account linking). Next step: the first
+> read-only screens, once the user shares UI references (see "First build").
 > Decisions are in **`docs/DECISIONS.md`**; they override anything here that disagrees.
 
 **Orion** (github.com/wanoreck/orion, private) is the staff control panel for **ServiceFlow**,

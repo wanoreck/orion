@@ -13,7 +13,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "test": "node --conditions=react-server --import tsx --test 'tests/unit/**/*.test.mts'",
+    "test": "node --conditions=react-server --import tsx --test --test-concurrency=1 'tests/unit/**/*.test.mts'",
     "test:e2e": "node --conditions=react-server --import tsx --test --test-concurrency=1 'tests/e2e/**/*.test.mts'"
   },
   "dependencies": {

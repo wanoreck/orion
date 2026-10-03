@@ -81,3 +81,18 @@ export type OrderListQuery = {
   /** At most 100. */
   per_page?: number;
 };
+
+/** GET /me (linked): the WordPress user an Application Password belongs to. */
+export type Me = {
+  id: number;
+  public_id: string;
+  username: string;
+  name: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  avatar_url: string;
+  roles: string[];
+  /** The Application Password this request used. */
+  link: { name: string; created_at: string };
+};

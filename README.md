@@ -90,3 +90,23 @@ If the database can't be reached at startup, the container exits and Docker rest
 - The API client (`src/serviceflow/`) signs every request per the contract §2, maps every §4
   error code, re-signs once on clock skew, never follows redirects, and returns
   `X-SF-Server-Time` with each response for polling.
+
+## Linking to WordPress (D6, D7)
+
+- On `/account`, anyone can **Link WordPress account**. Orion sends the browser to the
+  ServiceFlow site's "Authorize Application" page with a single-use state (10 minutes, tied
+  to that Orion account and connection). WordPress returns to `/account/link/callback` with
+  the new Application Password, which Orion checks with a signed `GET /me` and stores
+  encrypted, bound to that account and connection. The browser is sent on immediately, so the
+  password leaves the address bar. It's never logged or shown again.
+- Links are per connection: swapping the key needs new links; switching back restores them.
+- Unlinked accounts (or broken links) see a "read-only" warning on every page.
+- `/account` re-checks the link live; a 401 (revoked or deleted password) or
+  `sf_api_link_mismatch` marks it broken and asks to link again.
+- **Unlink** deletes Orion's copy. The Application Password stays in WordPress until it's
+  deleted there (Users → Profile → Application Passwords); see `docs/API-REQUESTS.md`.
+- WordPress only returns to `https://` addresses. Orion uses the address it's reached at
+  (from Traefik's forwarded headers); set `ORION_PUBLIC_URL` to override it.
+- WordPress puts the password in the callback URL's query string (that's how its flow works).
+  Orion never logs it, but proxy access logs (Traefik, Cloudflare) could. Keep URL access
+  logging off for Orion, or exclude `/account/link/callback`.

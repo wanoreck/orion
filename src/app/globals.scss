@@ -85,3 +85,15 @@ body {
 .orion-notice-action {
   margin-bottom: 0.5rem;
 }
+
+.orion-inline-form {
+  display: inline-block;
+  margin-top: 1rem;
+  margin-right: 1rem;
+}
+
+.orion-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}

@@ -19,6 +19,12 @@ export type FakeSite = {
   requests: { method: string; route: string; query: Record<string, string>; valid: boolean }[];
   /** Use the plain-permalink REST root (?rest_route=/) in the key. */
   plainPermalinks: boolean;
+  /** GET /connection's linking.available (WordPress needs HTTPS for it). */
+  linkingAvailable: boolean;
+  /** Application Passwords issued through this connection, by user_login. */
+  appPasswords: Map<string, { password: string; revoked: boolean }>;
+  /** What WordPress's authorize page does on "Approve": issues a password for this user. */
+  approve(userLogin: string): string;
   makeKey(overrides?: Record<string, unknown>): string;
   close(): Promise<void>;
 };
@@ -61,6 +67,14 @@ export async function startFakeServiceFlow(): Promise<FakeSite> {
     failWith: null,
     requests: [],
     plainPermalinks: false,
+    linkingAvailable: false,
+    appPasswords: new Map(),
+    approve(userLogin) {
+      // WordPress formats Application Passwords as six groups of four characters.
+      const password = (randomBytes(18).toString('base64url').match(/.{4}/g) ?? []).slice(0, 6).join(' ');
+      site.appPasswords.set(userLogin, { password, revoked: false });
+      return password;
+    },
     makeKey(overrides = {}) {
       const api = site.plainPermalinks ? `${site.url}/?rest_route=/` : `${site.url}/wp-json/`;
       const json = { v: 1, api, site: site.url, id: connectionId, key: seed.toString('base64url'), ...overrides };
@@ -147,8 +161,26 @@ export async function startFakeServiceFlow(): Promise<FakeSite> {
             name: 'Fake ServiceFlow', url: site.url, timezone: 'America/Chicago', currency: 'USD',
             stripe_mode: 'test', plugin_version: '1.5.0', api_version: '0.2.0',
           },
-          linking: { available: false, authorize_url: `${site.url}/wp-admin/authorize-application.php`, app_id: 'x', app_name: 'Orion' },
+          linking: { available: site.linkingAvailable, authorize_url: `${site.url}/wp-admin/authorize-application.php`, app_id: 'x', app_name: 'Orion' },
         });
+      case '/serviceflow/v1/me': {
+        // Linked route (contract §3): HTTP Basic with an Application Password from this connection.
+        const auth = h('Authorization');
+        if (!auth?.startsWith('Basic ')) return error(res, 403, 'sf_api_link_required');
+        const decoded = Buffer.from(auth.slice(6), 'base64').toString('utf8');
+        const login = decoded.slice(0, decoded.indexOf(':'));
+        const password = decoded.slice(decoded.indexOf(':') + 1);
+        const issued = site.appPasswords.get(login);
+        if (!issued || issued.revoked || issued.password !== password) {
+          // WordPress core's answer for a wrong, deleted or revoked Application Password.
+          return send(res, 401, { code: 'incorrect_password', message: 'The provided password is an invalid application password.', data: { status: 401 } });
+        }
+        return send(res, 200, {
+          id: 7, public_id: 'USR-7', username: login, name: `WP ${login}`, first_name: 'WP', last_name: login,
+          email: `${login}@site.example`, avatar_url: '', roles: ['administrator'],
+          link: { name: 'Orion (test)', created_at: '2026-10-03T09:00:00-05:00' },
+        });
+      }
       case '/serviceflow/v1/orders/counts':
         return send(res, 200, COUNTS);
       case '/serviceflow/v1/orders':

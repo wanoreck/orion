@@ -80,7 +80,23 @@ const MESSAGES: Record<string, string> = {
   incorrect_password: 'Your WordPress link no longer works (its Application Password was removed). Link again.',
   orion_unreachable: "Couldn't reach the ServiceFlow site.",
   orion_bad_response: "The ServiceFlow site's answer wasn't the ServiceFlow API.",
+  // Account linking (Orion's own codes).
+  orion_no_connection: 'Orion needs a working ServiceFlow connection first.',
+  orion_link_state_unknown: "That link attempt isn't valid: it was already used, or didn't start here. Start again.",
+  orion_link_state_expired: 'That link attempt took longer than 10 minutes. Start again.',
+  orion_link_state_wrong_user: 'That link attempt was started by a different Orion account. Start again while signed in as yourself.',
+  orion_link_state_wrong_connection: 'That link attempt was for a different ServiceFlow connection. Start again.',
+  orion_link_rejected: 'The request was declined in WordPress, so nothing was linked.',
+  orion_link_incomplete: "WordPress didn't send back the account details. Start again.",
+  orion_link_wrong_site: 'WordPress answered from a different site than the one Orion is connected to. Nothing was linked.',
+  orion_link_user_mismatch: "The new Application Password belongs to a different WordPress user than WordPress reported. Nothing was linked.",
+  orion_credential_unreadable: "Orion can't decrypt your stored WordPress link (ORION_ENCRYPTION_KEY changed). Link again.",
 };
+
+/** A plain-language explanation for any code Orion shows (API, network or Orion's own). */
+export function explainCode(code: string): string {
+  return MESSAGES[code] ?? `Unexpected error (${code}).`;
+}
 
 export class ApiError extends Error {
   readonly kind: ApiErrorKind;

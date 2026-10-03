@@ -3,6 +3,7 @@ import {
   boolean,
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -65,3 +66,54 @@ export const sessions = pgTable(
 );
 
 export type User = typeof users.$inferSelect;
+
+export const LINK_STATUSES = ['ok', 'broken'] as const;
+export type LinkStatus = (typeof LINK_STATUSES)[number];
+
+/**
+ * An Orion account's link to a WordPress user on one ServiceFlow connection (D6, contract
+ * §3). Kept per connection: swapping the key needs new links, and switching back restores
+ * these (D3).
+ */
+export const accountLinks = pgTable(
+  'account_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    connectionId: text('connection_id').notNull(),
+    /** Encrypted JSON { user_login, password }, bound to this user and connection. */
+    encryptedCredential: text('encrypted_credential').notNull(),
+    wpUserId: integer('wp_user_id').notNull(),
+    wpUsername: text('wp_username').notNull(),
+    wpName: text('wp_name').notNull(),
+    /** broken: the site rejected the credential (revoked, deleted, wrong connection). */
+    status: text('status', { enum: LINK_STATUSES }).notNull().default('ok'),
+    brokenCode: text('broken_code'),
+    linkedAt: timestamp('linked_at', { withTimezone: true }).notNull().defaultNow(),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('account_links_user_connection_key').on(t.userId, t.connectionId),
+    check('account_links_status_check', sql`${t.status} in ('ok', 'broken')`),
+  ],
+);
+
+/**
+ * One-time tokens tying WordPress's authorize redirect back to the Orion user and
+ * connection that started it. The id is the SHA-256 of the token in the URL.
+ */
+export const linkStates = pgTable(
+  'link_states',
+  {
+    id: text('id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    connectionId: text('connection_id').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+);
+
+export type AccountLink = typeof accountLinks.$inferSelect;

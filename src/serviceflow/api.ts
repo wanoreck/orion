@@ -1,7 +1,10 @@
 import 'server-only';
 import { apiRequest, type ApiResponse } from './client';
 import type { ConnectionKey } from './key';
-import type { Connection, OrderCount, OrderListQuery, OrderSummary } from './types';
+import type { Connection, Me, OrderCount, OrderListQuery, OrderSummary } from './types';
+
+/** A WordPress Application Password issued through this connection (contract §3). */
+export type LinkCredential = { username: string; password: string };
 
 // Typed routes from contract §7. Each returns the parsed body plus X-SF-Server-Time.
 
@@ -9,6 +12,11 @@ const V1 = '/serviceflow/v1';
 
 export function getConnection(key: ConnectionKey): Promise<ApiResponse<Connection>> {
   return apiRequest<Connection>(key, `${V1}/connection`);
+}
+
+/** Linked route: who the credential belongs to. 401/403 here means the link is broken. */
+export function getMe(key: ConnectionKey, credential: LinkCredential): Promise<ApiResponse<Me>> {
+  return apiRequest<Me>(key, `${V1}/me`, { basicAuth: credential });
 }
 
 export function getOrderCounts(key: ConnectionKey): Promise<ApiResponse<OrderCount[]>> {
