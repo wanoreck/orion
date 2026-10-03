@@ -1,5 +1,6 @@
 import { InlineNotification, StructuredListBody, StructuredListCell, StructuredListRow, StructuredListWrapper } from '@carbon/react';
 import { requireAdmin } from '@/auth/current';
+import { errorSubtitle } from '@/components/error-subtitle';
 import { ConnectionKeyForm } from '@/components/connection-form';
 import { getConnection } from '@/serviceflow/api';
 import { ApiError, CONTRACT_API_VERSION } from '@/serviceflow/client';
@@ -28,13 +29,13 @@ export default async function SettingsPage() {
   const connection = await loadConnection();
 
   let live: Connection | null = null;
-  let problem: { message: string; code: string } | null = null;
+  let problem: { message: string; code: string; detail?: string } | null = null;
   if (connection.state === 'ready') {
     try {
       live = (await getConnection(connection.key)).data;
     } catch (err) {
       if (!(err instanceof ApiError)) throw err;
-      problem = { message: err.explanation, code: err.code };
+      problem = { message: err.explanation, code: err.code, detail: err.detail };
     }
   }
 
@@ -85,7 +86,7 @@ export default async function SettingsPage() {
 
       {problem && (
         <InlineNotification kind="error" lowContrast hideCloseButton
-          title={`The connection isn't working. ${problem.message}`} subtitle={`Code: ${problem.code}`} />
+          title={`The connection isn't working. ${problem.message}`} subtitle={errorSubtitle(problem.code, problem.detail)} />
       )}
 
       <div className="orion-section">

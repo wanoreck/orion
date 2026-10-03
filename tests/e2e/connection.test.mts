@@ -65,6 +65,14 @@ test('ServiceFlow connection, end to end', async (t) => {
     assert.ok((await orion.get('/', admin)).html.includes(NOTICE), 'still not connected');
   });
 
+  await t.test("an unreachable site shows the network error code and host, but not the key", async () => {
+    const unreachable = site.makeKey({ api: 'http://127.0.0.1:9/wp-json/', site: 'http://127.0.0.1:9' });
+    const page = await orion.submit('/settings', 'name="key"', { key: unreachable }, admin);
+    assert.match(page.html, /orion_unreachable/);
+    assert.match(page.html, /connecting to 127\.0\.0\.1:9/);
+    assert.ok(!page.html.includes(unreachable), 'key not echoed');
+  });
+
   await t.test('a valid key is verified, saved, and never sent back to the browser', async () => {
     const page = await orion.submit('/settings', 'name="key"', { key: site.key }, admin);
     assert.match(page.html, /Connected to Fake ServiceFlow/);
@@ -105,6 +113,9 @@ test('ServiceFlow connection, end to end', async (t) => {
     assert.equal(home.status, 200);
     assert.match(home.html, /revoked in ServiceFlow/);
     assert.match(home.html, /sf_api_connection_revoked/);
+    assert.ok(!home.html.includes('HTTP 401 from'), 'Users get no technical detail');
+    const adminHome = await orion.get('/', admin);
+    assert.match(adminHome.html, /HTTP 401 from 127\.0\.0\.1:\d+: sf_api_connection_revoked/);
     const settings = await orion.get('/settings', admin);
     assert.match(settings.html, /The connection isn(&#x27;|')t working/);
     assert.match(settings.html, /sf_api_connection_revoked/);

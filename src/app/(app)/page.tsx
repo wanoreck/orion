@@ -1,5 +1,6 @@
 import { InlineNotification } from '@carbon/react';
 import { requireUser } from '@/auth/current';
+import { errorSubtitle } from '@/components/error-subtitle';
 import { getOrderCounts } from '@/serviceflow/api';
 import { ApiError } from '@/serviceflow/client';
 import { loadConnection } from '@/serviceflow/connection';
@@ -12,13 +13,14 @@ export default async function Home() {
   const connection = await loadConnection();
 
   let counts: OrderCount[] | null = null;
-  let problem: { message: string; code: string } | null = null;
+  let problem: { message: string; code: string; detail?: string } | null = null;
   if (connection.state === 'ready') {
     try {
       counts = (await getOrderCounts(connection.key)).data;
     } catch (err) {
       if (!(err instanceof ApiError)) throw err;
-      problem = { message: err.explanation, code: err.code };
+      // Technical details are for Admins, who can act on them (Settings).
+      problem = { message: err.explanation, code: err.code, detail: user.role === 'admin' ? err.detail : undefined };
     }
   } else if (connection.state === 'unreadable') {
     problem = { message: "The saved connection key can't be decrypted.", code: 'orion_key_unreadable' };
@@ -30,7 +32,7 @@ export default async function Home() {
       <p>You&apos;re signed in as {user.role === 'admin' ? 'an Admin' : 'a User'}.</p>
       {problem && (
         <InlineNotification kind="error" lowContrast hideCloseButton className="orion-notice"
-          title={`Couldn't load data from ServiceFlow. ${problem.message}`} subtitle={`Code: ${problem.code}`} />
+          title={`Couldn't load data from ServiceFlow. ${problem.message}`} subtitle={errorSubtitle(problem.code, problem.detail)} />
       )}
       {counts && (
         <>

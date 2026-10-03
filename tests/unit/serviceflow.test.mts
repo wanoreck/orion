@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { createPublicKey, verify } from 'node:crypto';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { after, before, beforeEach, describe, test } from 'node:test';
 import { startFakeServiceFlow, COUNTS, type FakeSite } from '../fake-serviceflow.mts';
 
 const signing = await import('@/serviceflow/signing');
 const { parseConnectionKey } = await import('@/serviceflow/key');
-const { ApiError, API_ERROR_CODES, apiRequest, requestUrl } = await import('@/serviceflow/client');
+const { ApiError, API_ERROR_CODES, apiRequest, describeNetworkFailure, requestUrl } = await import('@/serviceflow/client');
 const api = await import('@/serviceflow/api');
 const secrets = await import('@/crypto/secrets');
 
@@ -254,16 +256,118 @@ describe('API client against a ServiceFlow stand-in', () => {
     assert.equal(site.requests.length, 3);
   });
 
-  test('reports an unreachable site, a non-API answer, and a redirect', async () => {
-    const offline = parse(site.makeKey({ api: 'http://127.0.0.1:1/wp-json/' }));
-    await assert.rejects(api.getConnection(offline), { code: 'orion_unreachable', kind: 'unreachable' });
+  test('reports an unreachable site, a non-API answer, and a redirect, with specifics', async () => {
+    const closedPort = await new Promise<number>((resolve) => {
+      const probe = createServer().listen(0, '127.0.0.1', () => {
+        const { port } = probe.address() as AddressInfo;
+        probe.close(() => resolve(port));
+      });
+    });
+    const offline = parse(site.makeKey({ api: `http://127.0.0.1:${closedPort}/wp-json/` }));
+    await assert.rejects(api.getConnection(offline), (err: unknown) => {
+      assert.ok(err instanceof ApiError);
+      assert.equal(err.code, 'orion_unreachable');
+      assert.equal(err.kind, 'unreachable');
+      assert.match(err.detail ?? '', new RegExp(`^ECONNREFUSED connecting to 127\\.0\\.0\\.1:${closedPort}: the host refused`));
+      return true;
+    });
+
     const key = parse(site.key);
-    await assert.rejects(apiRequest(key, '/not-json'), { code: 'orion_bad_response' });
+    await assert.rejects(apiRequest(key, '/not-json'), (err: unknown) => {
+      assert.ok(err instanceof ApiError);
+      assert.equal(err.code, 'orion_bad_response');
+      assert.match(err.detail ?? '', /^HTTP 200 from 127\.0\.0\.1:\d+, text\/html, not JSON/);
+      return true;
+    });
     await assert.rejects(apiRequest(key, '/redirect-me'), (err: unknown) => {
       assert.ok(err instanceof ApiError);
       assert.equal(err.code, 'orion_bad_response');
-      assert.match(err.message, /redirected/);
+      assert.match(err.detail ?? '', /^HTTP 301 redirect from 127\.0\.0\.1:\d+ to elsewhere\.example:443/);
       return true;
     });
+  });
+
+  test('reports a timeout with the host it waited on', async () => {
+    const silent = createServer(() => {}); // Accepts, never answers.
+    await new Promise<void>((resolve) => silent.listen(0, '127.0.0.1', resolve));
+    const { port } = silent.address() as AddressInfo;
+    try {
+      const key = parse(site.makeKey({ api: `http://127.0.0.1:${port}/wp-json/` }));
+      await assert.rejects(apiRequest(key, '/serviceflow/v1/connection', { timeoutMs: 300 }), (err: unknown) => {
+        assert.ok(err instanceof ApiError);
+        assert.match(err.detail ?? '', new RegExp(`^ETIMEDOUT: no answer from 127\\.0\\.0\\.1:${port}`));
+        return true;
+      });
+    } finally {
+      silent.closeAllConnections();
+      silent.close();
+    }
+  });
+
+  test("reports a host name that doesn't resolve", async () => {
+    const key = parse(site.makeKey({ api: 'https://sfwptest.nonexistent.invalid/wp-json/' }));
+    await assert.rejects(api.getConnection(key), (err: unknown) => {
+      assert.ok(err instanceof ApiError);
+      // ENOTFOUND normally; EAI_AGAIN where DNS itself is unavailable (as in the sandbox).
+      assert.match(err.detail ?? '', /^(ENOTFOUND|EAI_AGAIN) connecting to sfwptest\.nonexistent\.invalid:443: /);
+      return true;
+    });
+  });
+
+  test("names TLS and dual-stack failures from fetch's error chain", () => {
+    const url = 'https://sfwptest.server.wanoreck.com/wp-json/serviceflow/v1/connection';
+    const tls = new TypeError('fetch failed', {
+      cause: Object.assign(new Error('certificate has expired'), { code: 'CERT_HAS_EXPIRED' }),
+    });
+    assert.equal(
+      describeNetworkFailure(tls, url),
+      "CERT_HAS_EXPIRED connecting to sfwptest.server.wanoreck.com:443: the site's TLS certificate has expired (certificate has expired)",
+    );
+    const dualStack = new TypeError('fetch failed', {
+      cause: new AggregateError([
+        Object.assign(new Error('connect ECONNREFUSED ::1:443'), { code: 'ECONNREFUSED' }),
+        Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:443'), { code: 'ECONNREFUSED' }),
+      ]),
+    });
+    assert.match(describeNetworkFailure(dualStack, url), /^ECONNREFUSED connecting to sfwptest\.server\.wanoreck\.com:443: the host refused/);
+    const unknown = new TypeError('fetch failed', { cause: Object.assign(new Error('weird failure'), { code: 'E_SOMETHING_NEW' }) });
+    assert.equal(describeNetworkFailure(unknown, url), 'E_SOMETHING_NEW connecting to sfwptest.server.wanoreck.com:443: weird failure');
+  });
+
+  test("API errors carry the HTTP status, host and the site's message", async () => {
+    site.failWith = { status: 401, code: 'sf_api_connection_revoked' };
+    await assert.rejects(api.getConnection(parse(site.key)), (err: unknown) => {
+      assert.ok(err instanceof ApiError);
+      assert.match(err.detail ?? '', /^HTTP 401 from 127\.0\.0\.1:\d+: sf_api_connection_revoked: fake: sf_api_connection_revoked$/);
+      return true;
+    });
+  });
+
+  test('error details never include the key, the signature, or the query string', async () => {
+    const seed = JSON.parse(Buffer.from(site.key.slice(5), 'base64url').toString()).key as string;
+    const failures: InstanceType<typeof ApiError>[] = [];
+    const key = parse(site.key);
+    for (const run of [
+      () => api.listOrders(parse(site.makeKey({ api: 'http://127.0.0.1:9/wp-json/' })), { search: 'needle-in-query' }),
+      () => apiRequest(key, '/not-json', { query: { search: 'needle-in-query' } }),
+      () => apiRequest(key, '/redirect-me'),
+      () => { site.failWith = { status: 401, code: 'sf_api_signature_invalid' }; return api.listOrders(key, { search: 'needle-in-query' }); },
+    ]) {
+      try {
+        await run();
+      } catch (err) {
+        assert.ok(err instanceof ApiError);
+        failures.push(err);
+      }
+    }
+    assert.equal(failures.length, 4);
+    for (const err of failures) {
+      for (const text of [err.message, err.detail ?? '', err.explanation]) {
+        assert.ok(!text.includes(seed), 'no private key');
+        assert.ok(!text.includes('sfk1_'), 'no connection key');
+        assert.ok(!/signature:|X-SF-Signature|X-SF-Nonce/i.test(text), 'no signature headers');
+        assert.ok(!text.includes('needle-in-query'), 'no query string');
+      }
+    }
   });
 });

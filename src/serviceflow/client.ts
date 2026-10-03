@@ -89,6 +89,11 @@ export class ApiError extends Error {
     readonly status: number,
     message: string,
     readonly data?: Record<string, unknown>,
+    /**
+     * Technical specifics for Admins: the host Orion tried, the network or TLS error code, the
+     * HTTP status, the site's own message. Never the key, signature or request headers.
+     */
+    readonly detail?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -99,6 +104,54 @@ export class ApiError extends Error {
   get explanation(): string {
     return MESSAGES[this.code] ?? this.message;
   }
+}
+
+// Plain-language hints for the network and TLS error codes Node reports.
+const NETWORK_HINTS: Record<string, string> = {
+  ENOTFOUND: "the host name doesn't resolve in DNS from Orion's server",
+  EAI_AGAIN: "DNS lookup failed temporarily from Orion's server",
+  ECONNREFUSED: 'the host refused the connection (nothing listening on that port)',
+  ECONNRESET: 'the connection was reset',
+  ETIMEDOUT: 'the connection timed out',
+  UND_ERR_CONNECT_TIMEOUT: 'the connection timed out',
+  UND_ERR_HEADERS_TIMEOUT: 'the site accepted the connection but sent no response in time',
+  UND_ERR_SOCKET: 'the connection closed unexpectedly',
+  EHOSTUNREACH: "the host is unreachable from Orion's server",
+  ENETUNREACH: "the network is unreachable from Orion's server",
+  CERT_HAS_EXPIRED: "the site's TLS certificate has expired",
+  DEPTH_ZERO_SELF_SIGNED_CERT: "the site's TLS certificate is self-signed",
+  SELF_SIGNED_CERT_IN_CHAIN: "the site's TLS certificate chain is self-signed",
+  UNABLE_TO_VERIFY_LEAF_SIGNATURE: "the site's TLS certificate can't be verified (incomplete chain?)",
+  UNABLE_TO_GET_ISSUER_CERT_LOCALLY: "the site's TLS certificate issuer isn't trusted",
+  ERR_TLS_CERT_ALTNAME_INVALID: "the site's TLS certificate doesn't cover this host name",
+  EPROTO: 'the TLS handshake failed (is the port really HTTPS?)',
+  ERR_SSL_WRONG_VERSION_NUMBER: 'the TLS handshake failed (is the port really HTTPS?)',
+};
+
+/** "host:port" of a URL, without path or query. */
+function hostOf(url: string): string {
+  const u = new URL(url);
+  return `${u.hostname}:${u.port || (u.protocol === 'https:' ? '443' : '80')}`;
+}
+
+/** Digs the code and message out of fetch's error chain (TypeError → cause → AggregateError). */
+export function describeNetworkFailure(err: unknown, url: string): string {
+  const where = hostOf(url);
+  if ((err as Error)?.name === 'TimeoutError') return `ETIMEDOUT: no answer from ${where} within the time limit`;
+  let cause: unknown = (err as { cause?: unknown })?.cause;
+  for (let depth = 0; depth < 5 && cause; depth++) {
+    const c = cause as { code?: unknown; message?: unknown; errors?: unknown[]; cause?: unknown };
+    const inner = Array.isArray(c.errors) ? (c.errors.find((e) => (e as { code?: unknown })?.code) as typeof c) : undefined;
+    const code = typeof c.code === 'string' ? c.code : typeof inner?.code === 'string' ? inner.code : undefined;
+    if (code) {
+      const hint = NETWORK_HINTS[code];
+      const message = typeof (inner ?? c).message === 'string' ? String((inner ?? c).message) : '';
+      return `${code} connecting to ${where}: ${hint ?? message}${hint && message ? ` (${message})` : ''}`;
+    }
+    if (!c.cause && typeof c.message === 'string' && c.message) return `connecting to ${where}: ${c.message}`;
+    cause = c.cause;
+  }
+  return `connecting to ${where}: ${(err as Error)?.message || 'unknown error'}`;
 }
 
 export type ApiResponse<T> = {
@@ -164,9 +217,11 @@ async function send<T>(key: ConnectionKey, route: string, options: RequestOption
     headers.Authorization = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
   }
 
+  const url = requestUrl(key.api, route, options.query);
+  const where = hostOf(url);
   let res: Response;
   try {
-    res = await fetch(requestUrl(key.api, route, options.query), {
+    res = await fetch(url, {
       method,
       headers,
       body: body || undefined,
@@ -177,16 +232,20 @@ async function send<T>(key: ConnectionKey, route: string, options: RequestOption
       signal: AbortSignal.timeout(options.timeoutMs ?? 10_000),
     });
   } catch (err) {
-    const reason = (err as Error).name === 'TimeoutError' ? 'it took too long to answer' : 'the connection failed';
-    throw new ApiError('orion_unreachable', 0, `Couldn't reach the ServiceFlow site: ${reason}.`);
+    const detail = describeNetworkFailure(err, url);
+    throw new ApiError('orion_unreachable', 0, `Couldn't reach the ServiceFlow site: ${detail}.`, undefined, detail);
   }
 
   if (res.status >= 300 && res.status < 400) {
-    throw new ApiError(
-      'orion_bad_response',
-      res.status,
-      `The site redirected Orion elsewhere (HTTP ${res.status}). Check the site address in ServiceFlow's settings, then create a new key.`,
-    );
+    const location = res.headers.get('location');
+    let target = 'an unspecified address';
+    try {
+      if (location) target = hostOf(new URL(location, url).toString());
+    } catch {
+      // Unparseable Location header: keep the generic wording.
+    }
+    const detail = `HTTP ${res.status} redirect from ${where} to ${target}. Check the site address in ServiceFlow's settings, then create a new key.`;
+    throw new ApiError('orion_bad_response', res.status, `The site redirected Orion elsewhere: ${detail}`, undefined, detail);
   }
 
   const serverTimeHeader = Number(res.headers.get('X-SF-Server-Time'));
@@ -196,7 +255,9 @@ async function send<T>(key: ConnectionKey, route: string, options: RequestOption
   try {
     json = text ? JSON.parse(text) : null;
   } catch {
-    throw new ApiError('orion_bad_response', res.status, `The site answered HTTP ${res.status}, but not with JSON.`);
+    const type = res.headers.get('content-type') ?? 'no content type';
+    const detail = `HTTP ${res.status} from ${where}, ${type}, not JSON. Is the key's REST address right, and is the ServiceFlow plugin active?`;
+    throw new ApiError('orion_bad_response', res.status, `The site's answer wasn't JSON: ${detail}`, undefined, detail);
   }
 
   if (!res.ok) {
@@ -204,7 +265,9 @@ async function send<T>(key: ConnectionKey, route: string, options: RequestOption
     const code = typeof err?.code === 'string' ? err.code : `http_${res.status}`;
     const message = typeof err?.message === 'string' ? err.message : `HTTP ${res.status}`;
     const data = err?.data && typeof err.data === 'object' ? (err.data as Record<string, unknown>) : undefined;
-    throw new ApiError(code, res.status, message, data);
+    // The site's own message is safe to show Admins; it never contains Orion's key.
+    const detail = `HTTP ${res.status} from ${where}: ${code}: ${message.slice(0, 300)}`;
+    throw new ApiError(code, res.status, message, data, detail);
   }
   return { data: json as T, status: res.status, serverTime, headers: res.headers };
 }

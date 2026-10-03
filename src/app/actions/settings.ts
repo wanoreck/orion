@@ -41,7 +41,11 @@ export async function saveConnectionAction(_prev: FormState, form: FormData): Pr
     siteName = data.site?.name ?? parsed.key.site;
   } catch (err) {
     if (err instanceof ApiError) {
-      return { error: `Verification failed, so the key was not saved. ${err.explanation}`, code: err.code };
+      return {
+        error: `Verification failed, so the key was not saved. ${err.explanation}`,
+        code: err.code,
+        detail: err.detail,
+      };
     }
     throw err;
   }

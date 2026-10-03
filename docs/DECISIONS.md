@@ -192,6 +192,23 @@ Settings.
 
 **D14. Currency is USD.** The plugin hardcodes it for every Stripe call. *(2026-09-29)*
 
+## 5. Building Orion
+
+**D20. Errors are specific, but never reveal secrets.** *(2026-10-03)*
+Every error Orion shows or logs should say as precisely as possible what went wrong and
+where, so it can be fixed without guessing: the error code (Orion's, the API's `sf_api_*`,
+or the network/TLS code such as `ENOTFOUND`, `ECONNREFUSED`, `ETIMEDOUT`,
+`CERT_HAS_EXPIRED`), the host and port involved, the HTTP status, and the other side's own
+message.
+- **Never included:** the connection key or its private key, request signatures and
+  signature headers, passwords and Application Passwords, session tokens, full database
+  URLs, or anything else secret. Nothing that isn't needed to diagnose the problem, either
+  (e.g. request query strings).
+- **Who sees what:** technical detail goes to Admins, who can act on it (Settings).
+  Users get a plain explanation and the error code.
+- Prefer a clear, specific message over a generic "something went wrong". Plain-language
+  hints sit next to the raw code, not instead of it.
+
 ---
 
 ## Open questions

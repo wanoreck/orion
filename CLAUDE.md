@@ -108,6 +108,10 @@ links or buttons; put actions outside them.
 
 ## Working agreements
 
+- **Errors are specific, never secret (D20).** Show the exact code (Orion's, `sf_api_*`, or
+  network/TLS like `ENOTFOUND`), the host:port, HTTP status and the other side's message;
+  technical detail to Admins, plain explanation plus code to Users. Never keys, signatures,
+  passwords, tokens or full database URLs. No generic "something went wrong".
 - Small steps; commit each working step with a clear message. Pushing to `main` deploys, so
   don't push anything that doesn't build.
 - Keep this file and `docs/DECISIONS.md` current. New decisions from the user are added there,

@@ -4,11 +4,12 @@ import { useActionState } from 'react';
 import { Button, Form, InlineNotification, PasswordInput, Stack, TextInput } from '@carbon/react';
 import { changePasswordAction, loginAction, setupAction } from '@/app/actions/auth';
 import type { FormState } from '@/app/actions/form-state';
+import { errorSubtitle } from './error-subtitle';
 
 export function FormMessage({ state }: { state: FormState }) {
   if (state?.error) {
     return (
-      <InlineNotification kind="error" title={state.error} subtitle={state.code ? `Code: ${state.code}` : undefined}
+      <InlineNotification kind="error" title={state.error} subtitle={errorSubtitle(state.code, state.detail)}
         lowContrast hideCloseButton role="alert" />
     );
   }
