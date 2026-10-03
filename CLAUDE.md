@@ -1,7 +1,8 @@
 # Orion: Project Guide
 
-> **Status (2026-10-02):** First build step 1 done (Next.js + Carbon scaffold, Dockerfile,
-> health check, Postgres + Drizzle migrations). Next step: Orion accounts (see "First build").
+> **Status (2026-10-03):** First build steps 1–2 done (scaffold; Orion accounts: first-run
+> setup, login/logout, DB sessions, Admin user management). Next step: settings and the
+> connection key (see "First build"). Deployed at https://orion.server.wanoreck.com.
 > Decisions are in **`docs/DECISIONS.md`**; they override anything here that disagrees.
 
 **Orion** (github.com/wanoreck/orion, private) is the staff control panel for **ServiceFlow**,
@@ -94,6 +95,14 @@ WordPress database or files.**
 5. Account linking via WordPress's authorize flow (contract §3), with an "unlinked, read-only"
    warning for unlinked accounts.
 6. The first read-only screens, once the user has shared UI references.
+
+## Testing
+
+`npm test` (unit) and `npm run test:e2e` (production build over HTTP, after `npm run build`)
+need `TEST_DATABASE_URL`, a throwaway database whose name contains `test`. Postgres 18 is
+installed on the server (`/usr/lib/postgresql/18/bin`) for a local throwaway cluster; the
+sandbox stops background processes when a command ends, so start and stop it in the same
+command as the tests.
 
 ## Working agreements
 

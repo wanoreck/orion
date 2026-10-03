@@ -8,3 +8,57 @@ body {
   margin: 0;
   min-height: 100%;
 }
+
+// Plain layout helpers until the real screen designs arrive (D17).
+.orion-auth {
+  max-width: 24rem;
+  margin: 4rem auto;
+  padding: 0 1rem;
+
+  h1 {
+    margin-bottom: 1rem;
+  }
+}
+
+.orion-auth-intro {
+  margin-bottom: 1.5rem;
+}
+
+.orion-narrow {
+  max-width: 32rem;
+}
+
+.orion-section {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.orion-muted {
+  color: var(--cds-text-secondary);
+}
+
+.orion-row-error {
+  margin-top: 0.25rem;
+  color: var(--cds-text-error);
+}
+
+.orion-header-user {
+  align-self: center;
+  margin-right: 1rem;
+  color: var(--cds-text-inverse, #f4f4f4);
+}
+
+.orion-header-button {
+  height: 100%;
+  padding: 0 1rem;
+  border: none;
+  background: transparent;
+  color: var(--cds-text-inverse, #f4f4f4);
+  font: inherit;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--cds-background-hover, #393939);
+  }
+}

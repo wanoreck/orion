@@ -17,7 +17,8 @@ export function sql(): postgres.Sql {
   if (!globalForDb.orionSql) {
     const url = process.env.DATABASE_URL;
     if (!url) throw new Error('DATABASE_URL is not set');
-    globalForDb.orionSql = postgres(url, { max: 10, connect_timeout: 5 });
+    // Notices are informational ("schema already exists, skipping" on every migration run).
+    globalForDb.orionSql = postgres(url, { max: 10, connect_timeout: 5, onnotice: () => {} });
   }
   return globalForDb.orionSql;
 }

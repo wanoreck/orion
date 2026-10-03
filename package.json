@@ -12,12 +12,15 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "test": "node --conditions=react-server --import tsx --test 'tests/unit/**/*.test.mts'",
+    "test:e2e": "node --conditions=react-server --import tsx --test --test-concurrency=1 'tests/e2e/**/*.test.mts'"
   },
   "dependencies": {
     "@carbon/react": "^1.117.0",
     "@ibm/plex-mono": "^2.5.0",
     "@ibm/plex-sans": "^1.1.0",
+    "@node-rs/argon2": "^2.2.1",
     "drizzle-orm": "^0.45.3",
     "next": "^16.3.8",
     "postgres": "^3.4.9",
@@ -31,6 +34,7 @@
     "@types/react-dom": "^19.3.0",
     "drizzle-kit": "^0.31.11",
     "sass": "^1.105.1",
+    "tsx": "^4.23.15",
     "typescript": "5.9"
   }
 }
