@@ -19,8 +19,18 @@ only Orion.** The two are connected at runtime by a connection key, never by sha
   existing Cloudflare + Traefik setup.
 - Claude Code runs on that server as a restricted, non-root user that can see **only this
   repo**. Stay inside it; don't try to reach anything else on the server.
-- **Deploying = committing and pushing to `main`.** Coolify builds and deploys from the repo.
-  Don't try to control Coolify or Docker directly.
+- **Deploying = pushing to `main`, then the user clicks Redeploy in Coolify.** Auto-deploy
+  isn't possible yet: GitHub can't reach Coolify's webhook, because the server is only
+  reachable over Tailscale. After pushing, tell the user it's ready to redeploy. Don't try to
+  control Coolify or Docker directly.
+- **Reaching a ServiceFlow site hosted on this same server** (like the test site): the
+  site's hostname resolves to the server's Tailscale IP, and containers can't connect to that,
+  nor to the host's own ports (both time out). The fix (2026-10-03) is a **network alias on
+  Coolify's proxy container**: in Coolify → Servers → Proxy configuration, `coolify-proxy`'s
+  `coolify` network has `aliases: [sfwptest.server.wanoreck.com]`, so Docker's internal DNS
+  sends that hostname straight to Traefik. HTTPS and certificate checks still apply. Each
+  additional same-server ServiceFlow site needs its own alias there. Sites hosted elsewhere
+  (e.g. live production) need nothing. A timeout to a 100.x address is the symptom.
 - A **test** ServiceFlow site (WordPress on the same Coolify) is what Orion connects to during
   development. **Never connect Orion to the live production ServiceFlow site** unless the user
   explicitly says to.
