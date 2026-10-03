@@ -3,7 +3,7 @@
 // (Server Actions accept plain form posts).
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { cpSync, existsSync, rmSync } from 'node:fs';
 
 export const COOKIE = '__Host-orion_session';
 export const PASSWORD = 'correct horse battery';
@@ -43,6 +43,9 @@ export function hiddenFields(html: string, marker: string): FormData {
 
 export async function startOrion(port: number, env: Record<string, string> = {}): Promise<Orion> {
   if (!existsSync('.next/standalone/server.js')) throw new Error('Run `npm run build` first');
+  // Lay the build out as the Dockerfile does: static assets beside the standalone server.
+  rmSync('.next/standalone/.next/static', { recursive: true, force: true });
+  cpSync('.next/static', '.next/standalone/.next/static', { recursive: true });
   const base = `http://127.0.0.1:${port}`;
   const server: ChildProcess = spawn('node', ['.next/standalone/server.js'], {
     env: {

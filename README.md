@@ -34,6 +34,11 @@ npm test                        # unit tests (tests/unit)
 npm run build && npm run test:e2e   # the production build, driven over HTTP (tests/e2e)
 ```
 
+`tests/e2e/render.test.mts` loads every page in jsdom with Next.js's client scripts running,
+so React hydrates and runs effects, and fails on any client-side error. Server-rendered HTML
+alone doesn't show crashes like a Carbon component throwing in the browser. Add new pages
+to it.
+
 The ServiceFlow tests use a stand-in site (`tests/fake-serviceflow.mts`) that verifies
 signatures from the receiving side with its own encoder, so client bugs can't hide behind
 shared code.

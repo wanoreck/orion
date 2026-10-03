@@ -102,7 +102,9 @@ WordPress database or files.**
 need `TEST_DATABASE_URL`, a throwaway database whose name contains `test`. Postgres 18 is
 installed on the server (`/usr/lib/postgresql/18/bin`) for a local throwaway cluster; the
 sandbox stops background processes when a command ends, so start and stop it in the same
-command as the tests.
+command as the tests. Add every new page to `tests/e2e/render.test.mts` (client-side render
+check). Carbon's InlineNotification and ToastNotification throw in the browser if they contain
+links or buttons; put actions outside them.
 
 ## Working agreements
 

@@ -18,15 +18,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <AppHeader name={user.name} isAdmin={isAdmin} />
       <Content>
         {!connected && (
-          // D4: with no connection, Orion is empty, not broken.
-          <InlineNotification kind="info" lowContrast hideCloseButton className="orion-notice"
-            title="Orion isn't connected to a ServiceFlow site yet, so there's no data to show.">
-            {isAdmin ? (
-              <>Add the site&apos;s connection key in <Link href="/settings">Settings</Link>.</>
-            ) : (
-              'Ask an Admin to add the connection key in Settings.'
+          // D4: with no connection, Orion is empty, not broken. Carbon's InlineNotification
+          // throws on interactive children, so the Settings link sits below it.
+          <div className="orion-notice">
+            <InlineNotification kind="info" lowContrast hideCloseButton
+              title="Orion isn't connected to a ServiceFlow site yet, so there's no data to show."
+              subtitle={isAdmin ? "Add the site's connection key in Settings." : 'Ask an Admin to add the connection key in Settings.'} />
+            {isAdmin && (
+              <p className="orion-notice-action">
+                <Link href="/settings">Go to Settings</Link>
+              </p>
             )}
-          </InlineNotification>
+          </div>
         )}
         {children}
       </Content>
